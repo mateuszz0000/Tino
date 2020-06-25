@@ -1,9 +1,11 @@
 import asyncio
-import sys
 import inspect
+
+from aioredis.parser import Reader
+from aioredis.stream import StreamReader
+from asyncio.streams import StreamReaderProtocol
+
 import msgpack
-import json
-import logging
 from contextlib import asynccontextmanager
 
 from pydantic.tools import parse_obj_as
@@ -16,7 +18,7 @@ from .special_args import Auth, AuthRequired, ConnState
 from .server import Server
 from .config import Config
 from .serializer import pack_msgpack, default
-from .protocol import BUILT_IN_COMMANDS, COMMAND_SUBSCRIBE, write_permission_denied
+from .protocol import BUILT_IN_COMMANDS, MAX_CHUNK_SIZE
 
 
 class Command:
@@ -136,7 +138,8 @@ def make_client_class(api: Tino):
             packed = [pack_msgpack(packer, arg) for arg in args]
             result = await self.redis.execute(command.command, *packed)
             r = msgpack.unpackb(result)
-            if command.return_type != None:
+
+            if command.return_type is not None:
                 return parse_obj_as(command.return_type, r)
 
         methods[name.lower().decode("utf8")] = call
